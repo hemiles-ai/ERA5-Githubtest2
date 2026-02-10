@@ -1,7 +1,16 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { RecognitionResult } from "../types";
 
-// Stable architectural imagery
+// Helper to safely get key from the shimmed process object
+const getApiKey = () => {
+  try {
+    return (window as any).process?.env?.API_KEY || process.env.API_KEY || "";
+  } catch (e) {
+    return "";
+  }
+};
+
 const WHITE_HOUSE_IMAGE = "https://images.unsplash.com/photo-1501466044931-62695aada8e9?q=80&w=1200&auto=format&fit=crop";
 const DATA_CENTER_IMAGE = "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?q=80&w=1200&auto=format&fit=crop";
 
@@ -24,30 +33,15 @@ export async function recognizeObject(
   clickY?: number
 ): Promise<RecognitionResult | null> {
   try {
-    // REQ: Obtain API key exclusively from process.env.API_KEY
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("MISSING_ENVIRONMENT_KEY");
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error("API_KEY_NOT_CONFIGURED");
     
-    // Always initialize a fresh instance for current requests
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = `Strictly identify the object located at the user click point (${Math.round(clickX || 50)}%, ${Math.round(clickY || 50)}%). 
+    const prompt = `Strictly identify the object at (${Math.round(clickX || 50)}%, ${Math.round(clickY || 50)}%). 
     
-    SPECIAL OVERRIDES: 
-    1. If the target is a SILVER/METAL/STEEL push pin, IDENTIFY AS:
-       - name: 'White House'
-       - category: 'Government Landmark'
-       - description: 'Washington D.C'
-       - funFact: "Coldest Inauguration (1985): President Ronald Reagan's second inauguration recorded a noon temperature of 7F and a low of -4, forcing the ceremony indoors."
-       - visualPrompt: 'The White House facade, high contrast monochrome architectural drawing'
-
-    2. If the target is a CLEAR/TRANSPARENT/GLASS push pin, IDENTIFY AS:
-       - name: 'IAD13 Data Center'
-       - category: 'Infrastructure Node'
-       - description: 'Ashburn Virginia'
-       - funFact: "The IAD13 Data center is a Microsoft Data center that houses the Azure Data chip racks, currently being leased out by Open AI."
-       - visualPrompt: 'Futuristic server clusters in a dark high-tech facility, monochrome'
-
-    3. Otherwise, identify the object naturally.`;
+    OVERRIDES: 
+    1. If target is SILVER/METAL pin: White House (Washington D.C).
+    2. If target is CLEAR/GLASS pin: IAD13 Data Center (Ashburn Virginia).`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -63,7 +57,6 @@ export async function recognizeObject(
       }
     });
 
-    // Access .text property directly (not a method)
     if (!response.text) return null;
     const result = JSON.parse(response.text) as RecognitionResult;
     
@@ -74,7 +67,7 @@ export async function recognizeObject(
     } else if (nameLower.includes('iad13') || nameLower.includes('data center')) {
       result.name = 'IAD13 Data Center';
       result.referenceImage = DATA_CENTER_IMAGE;
-      result.weatherFacts = `Blizzard of 2016 ("Jonas"): Heavy snowfall recorded for the area, burying Ashburn under 36 inches.\n\nExtreme Heat 2024: Temperatures soared to 104°F.`;
+      result.weatherFacts = `Blizzard of 2016 ("Jonas"): 36 inches of snow.\nExtreme Heat 2024: 104°F recorded.`;
     }
 
     return result;
@@ -86,7 +79,7 @@ export async function recognizeObject(
 
 export async function speakMessage(text: string): Promise<void> {
   try {
-    const apiKey = process.env.API_KEY;
+    const apiKey = getApiKey();
     if (!apiKey) return;
     const ai = new GoogleGenAI({ apiKey });
 
@@ -104,7 +97,6 @@ export async function speakMessage(text: string): Promise<void> {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      // Decoding PCM bytes as per guidelines
       const binaryString = atob(base64Audio);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
@@ -126,22 +118,18 @@ export async function speakMessage(text: string): Promise<void> {
 
 export async function generateAIVisual(prompt: string): Promise<string | null> {
   try {
-    const apiKey = process.env.API_KEY;
+    const apiKey = getApiKey();
     if (!apiKey) return null;
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: {
-        parts: [{ text: `A grayscale, monochrome, artistic noir architectural photograph of: ${prompt}. High contrast, cinematic lighting.` }]
+        parts: [{ text: `A grayscale noir architectural photo of: ${prompt}.` }]
       },
-      config: { 
-        imageConfig: { aspectRatio: "1:1" } 
-        // DO NOT set responseMimeType or responseSchema for nano banana series
-      }
+      config: { imageConfig: { aspectRatio: "1:1" } }
     });
 
-    // Iterate to find image part
     const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
     return imagePart ? `data:image/png;base64,${imagePart.inlineData.data}` : null;
   } catch (error) {

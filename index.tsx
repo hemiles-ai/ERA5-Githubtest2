@@ -1,37 +1,24 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 
-console.log("SYSTEM: Kernel_Start");
+// Signal to the bootloader that we've started
+(window as any).REACT_MOUNTED = true;
 
-// Global error handler for runtime crashes
-window.onerror = function(message, source, lineno, colno, error) {
-  console.error("CRASH_DETECTED:", message);
-  const loader = document.getElementById('boot-loader');
-  if (loader) loader.style.display = 'none';
-  
-  const root = document.getElementById('root');
-  if (root) {
-    root.innerHTML = `
-      <div style="background: #000; color: #ff3333; padding: 30px; font-family: 'JetBrains Mono', monospace; height: 100vh; display: flex; flex-direction: column; justify-content: center;">
-        <h2 style="letter-spacing: 0.2em; font-size: 14px; margin-bottom: 20px;">CRITICAL_SYSTEM_FAILURE</h2>
-        <p style="font-size: 10px; color: rgba(255,255,255,0.5); line-height: 1.6;">
-          ERROR: ${message}<br/>
-          SOURCE: ${source}<br/>
-          LINE: ${lineno}:${colno}
-        </p>
-        <button onclick="window.location.reload()" style="margin-top: 40px; background: transparent; border: 1px solid #333; color: white; padding: 10px; font-size: 10px; cursor: pointer;">REBOOT_KERNEL</button>
-      </div>
-    `;
-  }
+const log = (msg: string) => {
+  console.log(`[KERNEL] ${msg}`);
+  const status = document.getElementById('boot-status');
+  if (status) status.innerText = msg;
 };
 
-const init = () => {
+const mount = () => {
   try {
+    log("Mounting_UI_Engine...");
     const rootElement = document.getElementById('root');
+    
     if (!rootElement) {
-      console.error("ERR: Root element missing");
-      return;
+      throw new Error("ROOT_MISSING");
     }
 
     const root = ReactDOM.createRoot(rootElement);
@@ -41,26 +28,31 @@ const init = () => {
       </React.StrictMode>
     );
 
-    console.log("SYSTEM: UI_Rendered");
+    log("Kernel_Active_Success");
 
-    // Clear loader once React is ready
+    // Smooth exit
     setTimeout(() => {
       const loader = document.getElementById('boot-loader');
+      const diag = document.getElementById('diag-console');
       if (loader) {
         loader.style.opacity = '0';
-        setTimeout(() => loader.remove(), 500);
+        loader.style.transition = 'opacity 0.6s ease';
+        setTimeout(() => {
+            loader.style.display = 'none';
+            if (diag) diag.style.display = 'none';
+        }, 600);
       }
     }, 500);
+
   } catch (err: any) {
-    console.error("INIT_ERROR:", err);
-    // Fix: Cast window to any to access custom logError property which might be injected by external scripts or debuggers
-    if ((window as any).logError) (window as any).logError("INIT_FAIL: " + err.message);
+    console.error("BOOT_CRASH:", err);
+    log(`BOOT_CRASH: ${err.message}`);
   }
 };
 
-// Ensure DOM is ready before init
+// Start
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', mount);
 } else {
-  init();
+  mount();
 }

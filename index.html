@@ -4,21 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VisionAR - AI Object Intelligence</title>
+    <title>VisionAR - System Boot</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'JetBrains Mono', monospace;
-            background-color: #000000;
-            color: #ffffff;
+            background-color: #000;
+            color: #fff;
             margin: 0;
             padding: 0;
             overflow: hidden;
             height: 100vh;
-            width: 100vw;
         }
         #boot-loader {
             position: fixed;
@@ -29,97 +26,109 @@
             justify-content: center;
             z-index: 9999;
             background: #000;
-            transition: opacity 0.5s ease;
         }
         .loader-bar {
-            width: 200px;
+            width: 240px;
             height: 2px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
             position: relative;
             overflow: hidden;
-            margin-top: 20px;
+            margin-top: 24px;
         }
         .loader-progress {
             position: absolute;
             height: 100%;
-            width: 50%;
+            width: 40%;
             background: #fff;
-            animation: loading 2s infinite ease-in-out;
+            animation: loading 1.5s infinite ease-in-out;
         }
         @keyframes loading {
-            0% { left: -50%; }
+            0% { left: -40%; }
             100% { left: 100%; }
         }
-        #debug-log {
+        #diag-console {
             position: fixed;
-            bottom: 20px;
+            bottom: 40px;
             left: 20px;
             right: 20px;
-            background: rgba(255,0,0,0.1);
-            border: 1px solid rgba(255,0,0,0.2);
-            color: #ff4444;
-            font-size: 8px;
-            padding: 10px;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            padding: 15px;
+            font-size: 9px;
+            line-height: 1.5;
+            color: #444;
             display: none;
-            z-index: 10000;
-            max-height: 100px;
+            max-height: 200px;
             overflow-y: auto;
-            pointer-events: none;
         }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        @keyframes scan {
-            0% { transform: translateY(0vh); opacity: 0; }
-            5% { opacity: 0.5; }
-            95% { opacity: 0.5; }
-            100% { transform: translateY(100vh); opacity: 0; }
-        }
-        .animation-scan { animation: scan 4s linear infinite; }
-        .grayscale-custom { filter: grayscale(1); }
+        .diag-err { color: #ff3333; font-weight: bold; }
+        .diag-ok { color: #33ff33; }
     </style>
     <script>
-        // Emergency mobile debugger
-        window.logError = function(msg) {
-            const log = document.getElementById('debug-log');
-            if (log) {
-                log.style.display = 'block';
-                log.innerText += '\\n' + msg;
-            }
-            console.error(msg);
-        };
-        window.addEventListener('error', (e) => window.logError('RUNTIME_ERR: ' + e.message));
-        window.addEventListener('unhandledrejection', (e) => window.logError('PROMISE_REJ: ' + e.reason));
+        // STAGE 1: GLOBAL SHIMS
+        window.process = { env: { API_KEY: "" } };
+        window.SYSTEM_BOOT_LOG = ["System_Clock_Start: " + new Date().toISOString()];
         
-        // Timeout fail-safe
+        function updateBootStatus(msg, isError = false) {
+            const el = document.getElementById('boot-status');
+            const consoleEl = document.getElementById('diag-console');
+            if (el) {
+                el.innerText = msg;
+                if (isError) el.style.color = '#ff4444';
+            }
+            if (consoleEl) {
+                consoleEl.style.display = 'block';
+                const line = document.createElement('div');
+                line.className = isError ? 'diag-err' : 'diag-ok';
+                line.innerText = `> ${msg}`;
+                consoleEl.appendChild(line);
+            }
+            window.SYSTEM_BOOT_LOG.push(msg);
+        }
+
+        window.onerror = function(msg, url, line) {
+            updateBootStatus(`CRITICAL_FAULT: ${msg} (at ${url}:${line})`, true);
+        };
+
+        // STAGE 2: DEPLOYMENT HEALTH CHECK
         setTimeout(() => {
-            const loader = document.getElementById('boot-loader');
-            if (loader && loader.parentElement) {
-                window.logError('BOOT_TIMEOUT: Kernel failed to mount within 6s. Check console/network.');
-                const help = document.createElement('div');
-                help.innerHTML = '<div style="margin-top:40px; color:rgba(255,255,255,0.3); font-size:10px; text-align:center;">ENSURE_HTTPS_OR_GITHUB_PAGES_BUILD</div>';
-                loader.appendChild(help);
+            if (!window.REACT_MOUNTED) {
+                updateBootStatus("BOOT_TIMEOUT: System hanging at Kernel Stage.", true);
+                updateBootStatus("PROBABLE_CAUSE: Static Deployment incompatibility.", true);
+                updateBootStatus("CHECK: Are you serving .tsx files raw? Browsers need .js", true);
+                updateBootStatus("CHECK: Using HTTPS? (Camera/Modules require secure context)", true);
             }
         }, 6000);
     </script>
 <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^18.3.1/",
-    "react/": "https://esm.sh/react@^18.3.1/",
-    "react": "https://esm.sh/react@^18.3.1",
-    "@google/genai": "https://esm.sh/@google/genai@^1.40.0"
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react": "https://esm.sh/react@18.3.1",
+    "@google/genai": "https://esm.sh/@google/genai@1.40.0"
   }
 }
 </script>
 </head>
 <body>
-    <div id="debug-log" class="mono"></div>
     <div id="boot-loader">
-        <div class="text-[10px] tracking-[0.5em] text-white/40 uppercase mono">Initializing_System</div>
+        <div class="text-[9px] tracking-[0.6em] text-white/30 uppercase mb-2">Neural_Core_Mounting</div>
+        <div id="boot-status" class="text-[10px] text-white/60 uppercase tracking-widest">Awaiting_Uplink...</div>
         <div class="loader-bar">
             <div class="loader-progress"></div>
         </div>
     </div>
+
+    <div id="diag-console">
+        <div class="mb-2 border-b border-white/10 pb-1 text-white/20 uppercase tracking-widest">Boot_Telemetry</div>
+    </div>
+
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+    
+    <script type="module">
+        import './index.tsx';
+        updateBootStatus("Module_Script_Injected");
+    </script>
 </body>
 </html>
