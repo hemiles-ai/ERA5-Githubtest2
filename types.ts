@@ -10,11 +10,9 @@ export interface RecognitionResult {
   weatherFacts?: string;
 }
 
-export interface Marker {
-  id: string;
+export interface ClickPosition {
   x: number;
   y: number;
-  label: string;
 }
 
 export enum AppStatus {
