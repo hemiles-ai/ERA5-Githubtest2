@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AppStatus, RecognitionResult, ClickPosition } from './types';
-import { recognizeObject, generateAIVisual, speakMessage } from './services/geminiService';
+import { recognizeObject, generateAIVisual, speakMessage, QuotaExceededError } from './services/geminiService';
 import HUDOverlay from './components/HUDOverlay';
 import IntelligencePanel from './components/IntelligencePanel';
 
@@ -67,12 +67,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleScanClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isAnalyzing || status !== AppStatus.SCANNING) return;
-
-    // Tactical Haptics
-    if ('vibrate' in navigator) {
-      navigator.vibrate(50);
+    // If we click an active UI element (like the close button), don't scan
+    if ((e.target as HTMLElement).closest('.pointer-events-auto')) {
+      return;
     }
+
+    if (isAnalyzing || status !== AppStatus.SCANNING) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -88,31 +88,35 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     setAiImage(null);
 
+    if ('vibrate' in navigator) navigator.vibrate(40);
+
     try {
       const result = await recognizeObject(base64Image, x, y);
       
       if (result) {
-        if ('vibrate' in navigator) navigator.vibrate([30, 80, 30]);
+        if ('vibrate' in navigator) navigator.vibrate([20, 100, 20]);
         setSelectedObject(result);
         setStatus(AppStatus.VIEWING_RESULT);
         
-        // Automatic Intel Briefing
-        if (result.name === 'White House' || result.name === 'IAD13 Data Center') {
-          speakMessage(`Target identified: ${result.name}. Initializing intelligence brief.`);
-        }
+        speakMessage(`Target identified: ${result.name}. Initializing intelligence brief.`);
 
         if (!result.referenceImage || result.name === 'IAD13 Data Center') {
           setIsGeneratingImage(true);
           const imageUrl = await generateAIVisual(result.visualPrompt);
-          setAiImage(imageUrl);
+          setAiImage(imageUrl); // Could be base64 or "QUOTA_EXCEEDED"
           setIsGeneratingImage(false);
         }
       } else {
         setClickPos(null);
       }
     } catch (err) {
-      console.error("Link failure:", err);
-      setClickPos(null);
+      if (err instanceof QuotaExceededError) {
+        setErrorMessage("API Quota Reached. The model is currently at its limit. Please try again in 60 seconds.");
+        setStatus(AppStatus.ERROR);
+      } else {
+        console.error("Link failure:", err);
+        setClickPos(null);
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -126,12 +130,15 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col grayscale-custom select-none touch-none">
+    <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col select-none touch-none">
       <canvas ref={canvasRef} className="hidden" />
 
-      <div className="relative flex-1 bg-black overflow-hidden">
+      <div 
+        className="relative flex-1 bg-black overflow-hidden cursor-crosshair"
+        onClick={handleScanClick}
+      >
         {status === AppStatus.INITIAL ? (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-12 text-center bg-[#050505]">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-12 text-center bg-[#050505] pointer-events-auto">
             <div className="mb-14 relative">
               <div className="w-28 h-28 border border-white/5 rounded-full flex items-center justify-center animate-[pulse_4s_infinite]">
                 <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_10px_white]"></div>
@@ -140,7 +147,7 @@ const App: React.FC = () => {
               <div className="absolute inset-4 border-l border-white/10 rounded-full animate-spin-reverse-slow"></div>
             </div>
             
-            <h1 className="text-4xl md:text-5xl font-bold tracking-[0.7em] mb-6 text-white uppercase mono">Vision_AR</h1>
+            <h1 className="text-4xl md:text-5xl font-bold tracking-[0.7em] mb-6 text-white uppercase mono text-center">Vision_AR</h1>
             <p className="text-white/20 max-w-xs text-[10px] leading-relaxed mb-16 uppercase tracking-[0.4em] mono">
               Neural Processing Substrate<br/>
               Standard Protocol V.1.5.2<br/>
@@ -148,7 +155,7 @@ const App: React.FC = () => {
             </p>
             
             <button 
-              onClick={startCamera}
+              onClick={(e) => { e.stopPropagation(); startCamera(); }}
               className="px-16 py-6 border border-white/20 text-white text-[11px] font-bold rounded-sm hover:bg-white hover:text-black transition-all uppercase tracking-[0.5em] mono active:scale-95 bg-transparent"
             >
               Initialize Uplink
@@ -160,40 +167,39 @@ const App: React.FC = () => {
             autoPlay 
             playsInline 
             muted
-            className="absolute inset-0 w-full h-full object-cover grayscale brightness-[0.8] contrast-[1.1]"
+            className="absolute inset-0 w-full h-full object-cover grayscale brightness-[0.8] contrast-[1.1] pointer-events-none"
           />
         )}
 
-        {(status === AppStatus.SCANNING || status === AppStatus.VIEWING_RESULT || status === AppStatus.CAMERA_REQUEST) && (
-          <HUDOverlay 
-            status={status} 
-            onClick={handleScanClick} 
-            isAnalyzing={isAnalyzing}
-            clickPos={clickPos}
-          />
-        )}
+        <HUDOverlay 
+          status={status} 
+          onClick={() => {}} // Click is handled by main container
+          isAnalyzing={isAnalyzing}
+          clickPos={clickPos}
+        />
 
-        {status === AppStatus.VIEWING_RESULT && selectedObject && (
+        {status === AppStatus.VIEWING_RESULT && selectedObject && clickPos && (
           <IntelligencePanel 
             result={selectedObject}
             aiImage={aiImage}
             onClose={closePanel}
             isGeneratingImage={isGeneratingImage}
+            clickPos={clickPos}
           />
         )}
 
         {status === AppStatus.ERROR && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-12 bg-black text-center">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center p-12 bg-black/95 text-center pointer-events-auto">
             <div className="w-16 h-16 border border-red-900/40 flex items-center justify-center mb-8">
               <span className="text-red-600 font-bold text-2xl mono animate-pulse">!</span>
             </div>
-            <h2 className="text-xl font-bold text-white mb-6 mono tracking-[0.3em] uppercase">Hardware_Error</h2>
-            <p className="text-white/30 mb-14 mono text-[10px] uppercase tracking-[0.2em] leading-loose max-w-sm">
+            <h2 className="text-xl font-bold text-white mb-6 mono tracking-[0.3em] uppercase">System_Fault</h2>
+            <p className="text-white/40 mb-14 mono text-[10px] uppercase tracking-[0.2em] leading-loose max-w-sm">
               {errorMessage}
             </p>
             <button 
               onClick={() => window.location.reload()}
-              className="px-12 py-5 border border-white/10 text-white/50 font-bold mono uppercase text-[10px] tracking-[0.4em] hover:text-white hover:border-white transition-all active:scale-95"
+              className="px-12 py-5 border border-white/20 text-white/50 font-bold mono uppercase text-[10px] tracking-[0.4em] hover:text-white hover:border-white transition-all"
             >
               Restart_Kernel
             </button>
@@ -208,26 +214,16 @@ const App: React.FC = () => {
             <div className="w-0.5 h-3 bg-white/10"></div>
             <div className={`w-0.5 h-3 bg-white/40 ${isAnalyzing ? 'animate-bounce delay-75' : ''}`}></div>
           </div>
-          <span className="text-[8px] font-bold uppercase tracking-[0.5em] text-white/30 mono">Uplink: Secure // Monitoring_Nodes</span>
+          <span className="text-[8px] font-bold uppercase tracking-[0.5em] text-white/30 mono">Sync: OK // Buffer: {status}</span>
         </div>
-        <div className="text-[8px] font-bold uppercase tracking-[0.4em] text-white/10 mono hidden sm:block">No_Authorized_Intercepts</div>
+        <div className="text-[8px] font-bold uppercase tracking-[0.4em] text-white/10 mono hidden sm:block">Tactical_Neural_Overlay_V1</div>
       </footer>
       
       <style>{`
-        .animate-spin-slow {
-          animation: spin 12s linear infinite;
-        }
-        .animate-spin-reverse-slow {
-          animation: spin-reverse 8s linear infinite;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes spin-reverse {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
+        .animate-spin-slow { animation: spin 12s linear infinite; }
+        .animate-spin-reverse-slow { animation: spin-reverse 8s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-reverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
       `}</style>
     </div>
   );

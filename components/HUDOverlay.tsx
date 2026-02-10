@@ -12,8 +12,7 @@ interface HUDOverlayProps {
 const HUDOverlay: React.FC<HUDOverlayProps> = ({ status, onClick, isAnalyzing, clickPos }) => {
   return (
     <div 
-      className="absolute inset-0 z-10 cursor-crosshair overflow-hidden pointer-events-auto"
-      onClick={onClick}
+      className="absolute inset-0 z-10 overflow-hidden pointer-events-none"
     >
       {/* Corner Brackets */}
       <div className="absolute top-6 left-6 w-12 h-12 border-t border-l border-white/20"></div>
@@ -29,7 +28,7 @@ const HUDOverlay: React.FC<HUDOverlayProps> = ({ status, onClick, isAnalyzing, c
       {/* Target Marker at Click Position */}
       {clickPos && (
         <div 
-          className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-300"
+          className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-300"
           style={{ left: `${clickPos.x}%`, top: `${clickPos.y}%` }}
         >
           <div className="relative flex items-center justify-center">
@@ -51,9 +50,9 @@ const HUDOverlay: React.FC<HUDOverlayProps> = ({ status, onClick, isAnalyzing, c
         </div>
       )}
 
-      {/* Center Sight (Inactive state) */}
+      {/* Center Sight */}
       {!clickPos && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-20">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20">
           <div className="w-16 h-16 border border-white/20 rounded-full flex items-center justify-center">
             <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
           </div>
@@ -61,28 +60,28 @@ const HUDOverlay: React.FC<HUDOverlayProps> = ({ status, onClick, isAnalyzing, c
       )}
 
       {/* Telemetry Readouts */}
-      <div className="absolute top-8 left-8 flex flex-col gap-1 pointer-events-none">
+      <div className="absolute top-8 left-8 flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-white animate-ping' : 'bg-white/30'}`}></div>
           <span className="text-[10px] font-bold tracking-[0.3em] text-white/90 uppercase mono">
             {isAnalyzing ? 'UPLINK_ACTIVE' : 'READY_TO_SCAN'}
           </span>
         </div>
-        <div className="text-[8px] text-white/20 mono tracking-widest">SIGNAL_STRENGTH: 98%</div>
+        <div className="text-[8px] text-white/20 mono tracking-widest uppercase">Signal_Str: 98%</div>
       </div>
 
-      <div className="absolute top-8 right-8 text-right pointer-events-none">
+      <div className="absolute top-8 right-8 text-right">
         <div className="text-[10px] font-bold text-white/50 mono tracking-widest uppercase mb-1">
           {new Date().toLocaleTimeString([], { hour12: false })}
         </div>
-        <div className="text-[8px] text-white/20 mono tracking-[0.2em]">LAT: 38.8977 // LNG: -77.0365</div>
+        <div className="text-[8px] text-white/20 mono tracking-[0.2em]">LAT: 38.89 // LNG: -77.03</div>
       </div>
 
       {/* Bottom Instructions */}
       {status === AppStatus.SCANNING && !isAnalyzing && !clickPos && (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-center pointer-events-none w-full px-12">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-center w-full px-12">
           <div className="bg-white/5 backdrop-blur-md px-6 py-4 border border-white/10 rounded-sm inline-block">
-            <p className="text-[10px] font-bold text-white/60 tracking-[0.5em] uppercase mono animate-pulse">Touch physical object to initiate query</p>
+            <p className="text-[10px] font-bold text-white/60 tracking-[0.5em] uppercase mono animate-pulse">Select Object To Interrogate</p>
           </div>
         </div>
       )}
