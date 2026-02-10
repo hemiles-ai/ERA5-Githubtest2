@@ -1,22 +1,5 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { RecognitionResult } from "../types";
-
-/**
- * REQ: API key must be obtained exclusively from process.env.API_KEY.
- * We use a safe accessor to prevent "process is not defined" crashes in pure browser environments.
- */
-const getSafeApiKey = (): string => {
-  try {
-    // @ts-ignore - process might not be defined in all environments
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-  } catch (e) {
-    console.warn("API_KEY_ACCESS_DELAYED");
-  }
-  return '';
-};
 
 // Stable architectural imagery
 const WHITE_HOUSE_IMAGE = "https://images.unsplash.com/photo-1501466044931-62695aada8e9?q=80&w=1200&auto=format&fit=crop";
@@ -41,10 +24,12 @@ export async function recognizeObject(
   clickY?: number
 ): Promise<RecognitionResult | null> {
   try {
-    const key = getSafeApiKey();
-    if (!key) throw new Error("MISSING_ENVIRONMENT_KEY");
+    // REQ: Obtain API key exclusively from process.env.API_KEY
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("MISSING_ENVIRONMENT_KEY");
     
-    const ai = new GoogleGenAI({ apiKey: key });
+    // Always initialize a fresh instance for current requests
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = `Strictly identify the object located at the user click point (${Math.round(clickX || 50)}%, ${Math.round(clickY || 50)}%). 
     
     SPECIAL OVERRIDES: 
@@ -78,6 +63,7 @@ export async function recognizeObject(
       }
     });
 
+    // Access .text property directly (not a method)
     if (!response.text) return null;
     const result = JSON.parse(response.text) as RecognitionResult;
     
@@ -100,9 +86,9 @@ export async function recognizeObject(
 
 export async function speakMessage(text: string): Promise<void> {
   try {
-    const key = getSafeApiKey();
-    if (!key) return;
-    const ai = new GoogleGenAI({ apiKey: key });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return;
+    const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
@@ -118,6 +104,7 @@ export async function speakMessage(text: string): Promise<void> {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      // Decoding PCM bytes as per guidelines
       const binaryString = atob(base64Audio);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
@@ -139,18 +126,22 @@ export async function speakMessage(text: string): Promise<void> {
 
 export async function generateAIVisual(prompt: string): Promise<string | null> {
   try {
-    const key = getSafeApiKey();
-    if (!key) return null;
-    const ai = new GoogleGenAI({ apiKey: key });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return null;
+    const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: {
         parts: [{ text: `A grayscale, monochrome, artistic noir architectural photograph of: ${prompt}. High contrast, cinematic lighting.` }]
       },
-      config: { imageConfig: { aspectRatio: "1:1" } }
+      config: { 
+        imageConfig: { aspectRatio: "1:1" } 
+        // DO NOT set responseMimeType or responseSchema for nano banana series
+      }
     });
 
+    // Iterate to find image part
     const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
     return imagePart ? `data:image/png;base64,${imagePart.inlineData.data}` : null;
   } catch (error) {

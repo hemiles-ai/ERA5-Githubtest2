@@ -29,6 +29,7 @@
             justify-content: center;
             z-index: 9999;
             background: #000;
+            transition: opacity 0.5s ease;
         }
         .loader-bar {
             width: 200px;
@@ -49,6 +50,22 @@
             0% { left: -50%; }
             100% { left: 100%; }
         }
+        #debug-log {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(255,0,0,0.1);
+            border: 1px solid rgba(255,0,0,0.2);
+            color: #ff4444;
+            font-size: 8px;
+            padding: 10px;
+            display: none;
+            z-index: 10000;
+            max-height: 100px;
+            overflow-y: auto;
+            pointer-events: none;
+        }
         .mono { font-family: 'JetBrains Mono', monospace; }
         @keyframes scan {
             0% { transform: translateY(0vh); opacity: 0; }
@@ -59,18 +76,43 @@
         .animation-scan { animation: scan 4s linear infinite; }
         .grayscale-custom { filter: grayscale(1); }
     </style>
+    <script>
+        // Emergency mobile debugger
+        window.logError = function(msg) {
+            const log = document.getElementById('debug-log');
+            if (log) {
+                log.style.display = 'block';
+                log.innerText += '\\n' + msg;
+            }
+            console.error(msg);
+        };
+        window.addEventListener('error', (e) => window.logError('RUNTIME_ERR: ' + e.message));
+        window.addEventListener('unhandledrejection', (e) => window.logError('PROMISE_REJ: ' + e.reason));
+        
+        // Timeout fail-safe
+        setTimeout(() => {
+            const loader = document.getElementById('boot-loader');
+            if (loader && loader.parentElement) {
+                window.logError('BOOT_TIMEOUT: Kernel failed to mount within 6s. Check console/network.');
+                const help = document.createElement('div');
+                help.innerHTML = '<div style="margin-top:40px; color:rgba(255,255,255,0.3); font-size:10px; text-align:center;">ENSURE_HTTPS_OR_GITHUB_PAGES_BUILD</div>';
+                loader.appendChild(help);
+            }
+        }, 6000);
+    </script>
 <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^18.3.1/",
+    "react/": "https://esm.sh/react@^18.3.1/",
+    "react": "https://esm.sh/react@^18.3.1",
     "@google/genai": "https://esm.sh/@google/genai@^1.40.0"
   }
 }
 </script>
 </head>
 <body>
+    <div id="debug-log" class="mono"></div>
     <div id="boot-loader">
         <div class="text-[10px] tracking-[0.5em] text-white/40 uppercase mono">Initializing_System</div>
         <div class="loader-bar">

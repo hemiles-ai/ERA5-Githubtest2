@@ -1,10 +1,12 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 
-// Enhanced global error handler for mobile debugging
+console.log("SYSTEM: Kernel_Start");
+
+// Global error handler for runtime crashes
 window.onerror = function(message, source, lineno, colno, error) {
+  console.error("CRASH_DETECTED:", message);
   const loader = document.getElementById('boot-loader');
   if (loader) loader.style.display = 'none';
   
@@ -24,24 +26,41 @@ window.onerror = function(message, source, lineno, colno, error) {
   }
 };
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("ROOT_NODE_NOT_FOUND");
-}
+const init = () => {
+  try {
+    const rootElement = document.getElementById('root');
+    if (!rootElement) {
+      console.error("ERR: Root element missing");
+      return;
+    }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
 
-// Remove the boot loader once the React cycle starts
-setTimeout(() => {
-  const loader = document.getElementById('boot-loader');
-  if (loader) {
-    loader.style.opacity = '0';
-    loader.style.transition = 'opacity 0.5s ease';
-    setTimeout(() => loader.remove(), 500);
+    console.log("SYSTEM: UI_Rendered");
+
+    // Clear loader once React is ready
+    setTimeout(() => {
+      const loader = document.getElementById('boot-loader');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+      }
+    }, 500);
+  } catch (err: any) {
+    console.error("INIT_ERROR:", err);
+    // Fix: Cast window to any to access custom logError property which might be injected by external scripts or debuggers
+    if ((window as any).logError) (window as any).logError("INIT_FAIL: " + err.message);
   }
-}, 1000);
+};
+
+// Ensure DOM is ready before init
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
